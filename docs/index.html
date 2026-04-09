@@ -65,7 +65,9 @@ nav{background:var(--surface);border-bottom:1px solid var(--border);position:sti
 .post-time{color:var(--text-faint);margin-left:auto;font-size:.78rem}
 .post-title{font-size:1.05rem;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.4}
 .post-title a{color:var(--text)}.post-title a:hover{color:var(--accent)}
-.post-body{font-size:.9rem;color:var(--text-secondary);line-height:1.55;max-height:4.8em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.post-body{font-size:.9rem;color:var(--text-secondary);line-height:1.55;max-height:4.8em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;white-space:pre-wrap}
+.post-body.expanded{max-height:none;display:block;-webkit-line-clamp:unset}
+.post-card.clickable{cursor:pointer}.post-card.clickable .post-title a{pointer-events:none}
 .post-actions{display:flex;gap:16px;margin-top:12px;padding-top:8px}
 .post-action{display:flex;align-items:center;gap:4px;font-size:.8rem;color:var(--text-faint);cursor:pointer;transition:.12s;border:none;background:none;padding:4px 8px;border-radius:4px}
 .post-action:hover{color:var(--text);background:var(--surface2)}
@@ -356,14 +358,18 @@ footer{max-width:1200px;margin:0 auto;padding:24px 20px;text-align:center;color:
       var created=post.created_at||'';
 
       var isV2 = post.source === 'v2';
-      var bodyPreview = (post.body||'').substring(0,200);
-      if(bodyPreview.length>=200) bodyPreview+='...';
+      var fullBody = post.body||'';
 
       var card=document.createElement('div');card.className='post-card';
-      if(isV2) card.style.borderLeft='3px solid var(--green)';
+      if(isV2) {
+        card.style.borderLeft='3px solid var(--green)';
+        card.className='post-card clickable';
+      }
 
-      var linkUrl = num ? DISC+num : '#';
-      var linkTarget = num ? ' target="_blank"' : '';
+      var linkUrl = num ? DISC+num : '';
+      var titleHtml = linkUrl
+        ? '<a href="'+linkUrl+'" target="_blank">'+esc(title)+'</a>'
+        : esc(title);
 
       card.innerHTML=
         '<div class="post-meta">'
@@ -375,12 +381,22 @@ footer{max-width:1200px;margin:0 auto;padding:24px 20px;text-align:center;color:
           +'<span class="post-time">'+timeAgo(created)+'</span>'
         +'</div>'
         +(tag?'<span class="post-tag tag-'+(tc||'default')+'">'+esc(tag)+'</span>':'')
-        +'<div class="post-title"><a href="'+linkUrl+'"'+linkTarget+'>'+esc(title)+'</a></div>'
-        +(bodyPreview?'<div class="post-body">'+esc(bodyPreview)+'</div>':'')
+        +'<div class="post-title">'+titleHtml+'</div>'
+        +(fullBody?'<div class="post-body">'+esc(fullBody)+'</div>':'')
         +'<div class="post-actions">'
           +'<button class="post-action"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'+comments+'</button>'
           +'<button class="post-action"><svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Share</button>'
         +'</div>';
+
+      // v2 posts expand/collapse on click
+      if(isV2 && fullBody.length>200){
+        card.addEventListener('click',function(e){
+          if(e.target.closest('.post-action'))return; // don't toggle when clicking actions
+          var body=card.querySelector('.post-body');
+          if(body) body.classList.toggle('expanded');
+        });
+      }
+
       el.appendChild(card);
     });
   }
