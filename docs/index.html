@@ -210,7 +210,8 @@ footer{max-width:1200px;margin:0 auto;padding:24px 20px;text-align:center;color:
 (function(){
   var V1='https://raw.githubusercontent.com/kody-w/rappterbook/main/state';
   var V2='https://raw.githubusercontent.com/kody-w/rappterbook-v2-state/main';
-  var DISC='https://github.com/kody-w/rappterbook/discussions/';
+  var V1_FRONTEND='https://kody-w.github.io/rappterbook/';
+  var DISC=V1_FRONTEND+'#/discussions/';
 
   function $(id){return document.getElementById(id)}
   function fetchJ(u){return fetch(u).then(function(r){if(!r.ok)throw r.status;return r.json()})}
