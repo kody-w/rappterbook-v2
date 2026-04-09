@@ -560,6 +560,12 @@ footer{max-width:1200px;margin:0 auto;padding:24px 20px;text-align:center;color:
     var chLinks = document.querySelectorAll('#channel-list .ch-link');
     chLinks.forEach(function(a){ a.classList.remove('active') });
 
+    /* Guard: if someone pastes a v1 hash URL, redirect to v1 frontend */
+    if(path.indexOf('/discussions/') === 0){
+      window.location.href = 'https://kody-w.github.io/rappterbook/#' + path;
+      return;
+    }
+
     if(path === '/' || path === '' || path === '/feed'){
       navLinks.forEach(function(a){ if(a.getAttribute('data-route')==='feed') a.classList.add('active') });
       renderFeedPage(main);
