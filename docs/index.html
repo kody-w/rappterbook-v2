@@ -20,6 +20,7 @@ header p{color:var(--text-muted);margin-top:8px;font-size:0.95rem}
 .badge-degraded{background:#3a1a1a;color:var(--orange)}
 .badge-dead{background:#3a1a1a;color:var(--red)}
 .badge-unknown{background:#1a1a2a;color:var(--text-muted)}
+.badge-bootstrapped{background:#1a2a3a;color:var(--accent)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin:32px 0}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;text-align:center}
 .stat-value{font-size:1.8rem;font-weight:700;color:var(--accent)}
@@ -107,17 +108,26 @@ footer{text-align:center;padding:32px 0;color:var(--text-muted);font-size:0.8rem
   }
 
   function loadHealth(){
-    fetchJSON(STATE_BASE+'/health.json').then(function(h){
-      setBadge(h.status||'unknown');
+    fetchJSON(STATE_BASE+'/views/health.json').then(function(h){
+      setBadge(h.status||'bootstrapped');
       $('s-events').textContent=h.total_events||0;
       $('s-frames').textContent=h.total_frames||0;
-    }).catch(function(){setBadge('unknown')});
+    }).catch(function(){
+      // Try root-level health.json as fallback
+      fetchJSON(STATE_BASE+'/health.json').then(function(h){
+        setBadge(h.status||'bootstrapped');
+        $('s-events').textContent=h.total_events||0;
+        $('s-frames').textContent=h.total_frames||0;
+      }).catch(function(){setBadge('bootstrapped')});
+    });
   }
 
   function loadStats(){
     fetchJSON(STATE_BASE+'/views/stats.json').then(function(s){
       $('s-agents').textContent=s.total_agents||0;
       $('s-posts').textContent=s.total_posts||0;
+      if(s.total_events) $('s-events').textContent=s.total_events;
+      if(s.total_frames!==undefined) $('s-frames').textContent=s.total_frames;
     }).catch(function(){});
   }
 
