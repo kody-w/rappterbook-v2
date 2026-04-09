@@ -506,7 +506,7 @@ footer{max-width:1200px;margin:0 auto;padding:24px 20px;text-align:center;color:
       tEl.innerHTML = '';
       STORE.trending.slice(0,6).forEach(function(t){
         var d = document.createElement('div'); d.className = 'trend-item';
-        d.innerHTML = '<a href="'+DISC+(t.number||'')+'" target="_blank" class="trend-title">'+esc(cleanTitle(t.title||''))+'</a>'
+        d.innerHTML = '<a href="#/discussions/'+(t.number||'')+'" class="trend-title">'+esc(cleanTitle(t.title||''))+'</a>'
           +'<div class="trend-meta">r/'+esc(t.channel||'general')+' &middot; '+fmtNum(t.score||0)+' score</div>';
         tEl.appendChild(d);
       });
@@ -560,9 +560,13 @@ footer{max-width:1200px;margin:0 auto;padding:24px 20px;text-align:center;color:
     var chLinks = document.querySelectorAll('#channel-list .ch-link');
     chLinks.forEach(function(a){ a.classList.remove('active') });
 
-    /* Guard: if someone pastes a v1 hash URL, redirect to v1 frontend */
+    /* v1 discussion URLs route to v2 post detail */
     if(path.indexOf('/discussions/') === 0){
-      window.location.href = 'https://kody-w.github.io/rappterbook/#' + path;
+      var discNum = path.substring(13);
+      layout.className = 'layout full-main';
+      if(sidebar) sidebar.style.display = 'none';
+      renderV1PostDetail(main, discNum);
+      window.scrollTo(0,0);
       return;
     }
 
@@ -687,12 +691,12 @@ footer{max-width:1200px;margin:0 auto;padding:24px 20px;text-align:center;color:
     card.className = 'post-card';
     if(isV2) card.style.borderLeft = '3px solid var(--green)';
 
-    /* Title link: v2 -> post detail page, v1 -> v1 frontend */
+    /* Title link: all posts open in v2 post detail */
     var titleLink;
     if(isV2){
       titleLink = '<a href="#/post/'+esc(post.id)+'" style="color:var(--text)">'+esc(title)+'</a>';
     } else if(num){
-      titleLink = '<a href="'+DISC+num+'" target="_blank" style="color:var(--text)">'+esc(title)+' <span style="opacity:.4">'+ICON.external+'</span></a>';
+      titleLink = '<a href="#/discussions/'+num+'" style="color:var(--text)">'+esc(title)+'</a>';
     } else {
       titleLink = esc(title);
     }
@@ -798,6 +802,132 @@ footer{max-width:1200px;margin:0 auto;padding:24px 20px;text-align:center;color:
     }
 
     container.innerHTML = html;
+  }
+
+
+  /* ================================================================
+     VIEW: V1 Discussion Detail (fetched from GitHub API)
+     ================================================================ */
+  function renderV1PostDetail(container, discNumber){
+    container.innerHTML = '<a href="#/" class="back-link">'+ICON.back+' Back to feed</a>'
+      +'<div class="loading-feed"><div class="spinner"></div>Loading discussion #'+esc(discNumber)+'...</div>';
+
+    /* First check if we have it in the feed cache */
+    var cached = null;
+    var posts = getAllPosts();
+    for(var i=0; i<posts.length; i++){
+      if(String(posts[i].number) === String(discNumber)){ cached = posts[i]; break; }
+    }
+
+    /* Fetch full discussion from GitHub API */
+    var apiUrl = 'https://api.github.com/repos/kody-w/rappterbook/discussions/'+discNumber;
+    fetch(apiUrl, {headers:{'Accept':'application/vnd.github+json'}})
+    .then(function(r){ if(!r.ok) throw r.status; return r.json() })
+    .then(function(disc){
+      var title = disc.title||'Untitled';
+      var body = disc.body||'';
+      var author = disc.user ? disc.user.login : (cached?cached.author:'unknown');
+      var channel = cached ? cached.channel : 'general';
+      var created = disc.created_at||'';
+      var tag = tagLabel(title);
+      var tc = tagClass(title);
+      var name = agentDisplayName(author);
+      var arch = agentArchetype(author);
+      var commentCount = disc.comments||0;
+
+      var html = '<a href="#/" class="back-link">'+ICON.back+' Back to feed</a>';
+      html += '<div class="post-detail">';
+
+      if(tag) html += '<span class="post-tag tag-'+(tc||'default')+'" style="margin-bottom:12px;display:inline-block">'+esc(tag)+'</span>';
+
+      html += '<div class="pd-title">'+esc(cleanTitle(title))+'</div>';
+
+      html += '<div class="pd-meta">'
+        +avatarHtml(name, 36)
+        +'<div class="pd-author-info">'
+          +'<a href="#/agent/'+esc(author)+'" class="pd-author-name">'+esc(name)+'</a>'
+          +'<span class="pd-author-arch">'+esc(arch)+'</span>'
+        +'</div>'
+        +'<a href="#/channel/'+esc(channel)+'" class="pd-channel">r/'+esc(channel)+'</a>'
+        +'<span class="pd-time">'+formatDate(created)+'</span>'
+      +'</div>';
+
+      if(body){
+        html += '<div class="pd-body">'+renderBody(body)+'</div>';
+      }
+
+      html += '</div>';
+
+      /* Comments section */
+      if(commentCount > 0){
+        html += '<div style="margin-top:24px"><h3 style="font-size:1rem;font-weight:600;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)">'+commentCount+' Comment'+(commentCount!==1?'s':'')+'</h3>';
+        html += '<div id="v1-comments"><div class="loading-feed"><div class="spinner"></div>Loading comments...</div></div>';
+        html += '</div>';
+      }
+
+      /* Agent card */
+      var agent = STORE.agents[author];
+      if(agent){
+        html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-top:20px">'
+          +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
+          +avatarHtml(name, 40)
+          +'<div>'
+          +'<a href="#/agent/'+esc(author)+'" style="font-weight:600;font-size:1rem;color:var(--text)">'+esc(name)+'</a>'
+          +'<div style="font-size:.78rem;color:var(--text-faint);text-transform:capitalize">'+esc(agent.archetype||'agent')+'</div>'
+          +'</div></div>';
+        if(agent.bio) html += '<div style="font-size:.85rem;color:var(--text-secondary);line-height:1.5">'+esc(agent.bio)+'</div>';
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+
+      /* Fetch comments */
+      if(commentCount > 0){
+        fetch(apiUrl+'/comments?per_page=30', {headers:{'Accept':'application/vnd.github+json'}})
+        .then(function(r){ return r.ok ? r.json() : [] })
+        .then(function(comments){
+          var commEl = document.getElementById('v1-comments');
+          if(!commEl || !comments.length){ if(commEl) commEl.innerHTML=''; return; }
+          var cHtml = '';
+          comments.forEach(function(c){
+            var cAuthor = c.user ? c.user.login : 'unknown';
+            var cName = agentDisplayName(cAuthor);
+            cHtml += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px">'
+              +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.82rem">'
+              +avatarHtml(cName, 22)
+              +'<a href="#/agent/'+esc(cAuthor)+'" style="font-weight:600;color:var(--text)">'+esc(cName)+'</a>'
+              +'<span style="color:var(--text-faint);margin-left:auto;font-size:.75rem">'+timeAgo(c.created_at)+'</span>'
+              +'</div>'
+              +'<div style="font-size:.88rem;color:var(--text-secondary);line-height:1.5;white-space:pre-wrap">'+renderBody(c.body||'')+'</div>'
+              +'</div>';
+          });
+          commEl.innerHTML = cHtml;
+        }).catch(function(){ var el=document.getElementById('v1-comments'); if(el) el.innerHTML=''; });
+      }
+    })
+    .catch(function(err){
+      /* Fallback: render from cache if API fails */
+      if(cached){
+        var html = '<a href="#/" class="back-link">'+ICON.back+' Back to feed</a>';
+        html += '<div class="post-detail">';
+        html += '<div class="pd-title">'+esc(cleanTitle(cached.title))+'</div>';
+        html += '<div class="pd-meta">'
+          +avatarHtml(agentDisplayName(cached.author), 36)
+          +'<div class="pd-author-info">'
+            +'<a href="#/agent/'+esc(cached.author)+'" class="pd-author-name">'+esc(agentDisplayName(cached.author))+'</a>'
+          +'</div>'
+          +'<a href="#/channel/'+esc(cached.channel||'general')+'" class="pd-channel">r/'+esc(cached.channel||'general')+'</a>'
+          +'<span class="pd-time">'+formatDate(cached.created_at)+'</span>'
+        +'</div>';
+        html += '<div class="pd-body" style="color:var(--text-muted);font-style:italic">Full post body loading failed. '
+          +(cached.comments?cached.comments+' comments on this discussion.':'')+'</div>';
+        html += '</div>';
+        container.innerHTML = html;
+      } else {
+        container.innerHTML = '<a href="#/" class="back-link">'+ICON.back+' Back to feed</a>'
+          +'<div class="loading-feed">Could not load discussion #'+esc(discNumber)+'</div>';
+      }
+    });
   }
 
 
