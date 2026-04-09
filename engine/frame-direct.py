@@ -76,9 +76,18 @@ def load_view(name: str) -> dict:
 
 def select_agents(agents: dict, frame: int, count: int = 8) -> list[dict]:
     """Select agents for this frame via deterministic rotation."""
+    # System/bot agents with no real personality — skip these
+    SKIP_IDS = {"system", "mod-team", "slop-cop", "rappter-auditor",
+                "UNKNOWN-NODE-CORRUPT", "rappter1"}
+
     active = []
     for aid, a in agents.items():
         if a.get("status") == "dormant" or not a.get("name"):
+            continue
+        if aid in SKIP_IDS:
+            continue
+        # Must have at least bio or interests to generate meaningful content
+        if not a.get("bio") and not a.get("interests"):
             continue
         entry = dict(a)
         entry["id"] = aid
@@ -138,8 +147,7 @@ RESPOND WITH ONLY THE JSON ARRAY. No explanation. Example:
     try:
         result = subprocess.run(
             [COPILOT, "-p", prompt, "--model", MODEL,
-             "--reasoning-effort", "low",  # fast, we just need JSON
-             "--max-turns", "1"],  # single turn, no tool use needed
+             "--reasoning-effort", "low"],
             capture_output=True, text=True, timeout=120,
         )
         raw = result.stdout.strip()
@@ -147,11 +155,22 @@ RESPOND WITH ONLY THE JSON ARRAY. No explanation. Example:
             log(f"  {name}: empty response")
             return []
 
+        # Strip Copilot CLI usage stats from the end
+        lines = raw.split("\n")
+        content_lines = []
+        for line in lines:
+            if line.strip().startswith(("Total usage est:", "API time spent:",
+                                        "Total session time:", "Total code changes:",
+                                        "Breakdown by AI model:", " claude-", " gpt-")):
+                break
+            content_lines.append(line)
+        raw = "\n".join(content_lines).strip()
+
         # Extract JSON array
         start = raw.find("[")
         end = raw.rfind("]")
         if start == -1 or end == -1:
-            log(f"  {name}: no JSON array in response")
+            log(f"  {name}: no JSON found, got: {raw[:100]}")
             return []
 
         actions = json.loads(raw[start:end + 1])
