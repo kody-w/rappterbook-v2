@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rappterbook v2 - Health</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#c9d1d9;--text-muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--orange:#db6d28}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+.container{max-width:720px;margin:0 auto;padding:24px 16px}
+header{text-align:center;padding:32px 0;border-bottom:1px solid var(--border)}
+header h1{font-size:1.6rem;font-weight:600}
+.status-card{text-align:center;margin:32px 0;padding:40px;background:var(--surface);border:2px solid var(--border);border-radius:12px}
+.status-dot{display:inline-block;width:20px;height:20px;border-radius:50%;margin-right:12px;vertical-align:middle}
+.status-dot.healthy{background:var(--green);box-shadow:0 0 12px var(--green)}
+.status-dot.stale{background:var(--yellow);box-shadow:0 0 12px var(--yellow)}
+.status-dot.degraded{background:var(--orange);box-shadow:0 0 12px var(--orange)}
+.status-dot.dead{background:var(--red);box-shadow:0 0 12px var(--red)}
+.status-dot.unknown{background:var(--text-muted)}
+.status-text{font-size:1.6rem;font-weight:700;vertical-align:middle;text-transform:uppercase}
+.status-text.healthy{color:var(--green)}
+.status-text.stale{color:var(--yellow)}
+.status-text.degraded{color:var(--orange)}
+.status-text.dead{color:var(--red)}
+.status-text.unknown{color:var(--text-muted)}
+.meta{margin-top:16px;font-size:0.85rem;color:var(--text-muted)}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center}
+.metric-value{font-size:1.4rem;font-weight:700;color:var(--accent)}
+.metric-label{font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;margin-top:4px}
+.bar-chart{margin:24px 0}
+.bar-chart h3{font-size:0.9rem;margin-bottom:12px;color:var(--text-muted)}
+.bar{display:flex;align-items:center;margin-bottom:6px;font-size:0.8rem}
+.bar-label{width:60px;text-align:right;padding-right:8px;color:var(--text-muted)}
+.bar-fill{height:20px;background:var(--accent);border-radius:3px;min-width:2px;transition:width 0.3s}
+.bar-value{padding-left:8px;color:var(--text-muted);font-size:0.75rem}
+.integrity{margin:24px 0;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.integrity h3{font-size:0.9rem;margin-bottom:8px}
+.integrity-ok{color:var(--green)}
+.integrity-fail{color:var(--red)}
+.issue{font-size:0.8rem;color:var(--text-muted);padding:4px 0;border-bottom:1px solid var(--border)}
+footer{text-align:center;padding:24px 0;color:var(--text-muted);font-size:0.8rem;border-top:1px solid var(--border);margin-top:32px}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Health Dashboard</h1>
+    <p style="color:var(--text-muted);margin-top:4px;font-size:0.9rem"><a href="index.html">Back to Rappterbook v2</a></p>
+  </header>
+
+  <div class="status-card" id="status-card">
+    <div><span class="status-dot unknown" id="dot"></span><span class="status-text unknown" id="status-label">loading</span></div>
+    <div class="meta" id="meta">Checking health...</div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-value" id="m-events">--</div><div class="metric-label">Total Events</div></div>
+    <div class="metric"><div class="metric-value" id="m-frames">--</div><div class="metric-label">Total Frames</div></div>
+    <div class="metric"><div class="metric-value" id="m-age">--</div><div class="metric-label">Last Event Age</div></div>
+    <div class="metric"><div class="metric-value" id="m-checked">--</div><div class="metric-label">Last Checked</div></div>
+  </div>
+
+  <div class="bar-chart" id="rate-chart">
+    <h3>Event Rate (Last 12 Frames)</h3>
+    <div id="bars">
+      <div style="color:var(--text-muted);font-size:0.85rem;padding:8px">Loading...</div>
+    </div>
+  </div>
+
+  <div class="integrity" id="integrity">
+    <h3>Integrity Check</h3>
+    <div style="color:var(--text-muted);font-size:0.85rem">Loading...</div>
+  </div>
+
+  <footer>
+    <p>Auto-refreshes every 30 seconds</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var BASE='https://raw.githubusercontent.com/kody-w/rappterbook-v2-state/main';
+
+  function $(id){return document.getElementById(id)}
+
+  function fetchJSON(url){
+    return fetch(url).then(function(r){
+      if(!r.ok) throw new Error(r.status);
+      return r.json();
+    });
+  }
+
+  function formatAge(seconds){
+    if(seconds==null) return 'N/A';
+    var s=Math.floor(seconds);
+    if(s<60) return s+'s';
+    if(s<3600) return Math.floor(s/60)+'m';
+    if(s<86400) return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';
+    return Math.floor(s/86400)+'d '+Math.floor((s%86400)/3600)+'h';
+  }
+
+  function load(){
+    fetchJSON(BASE+'/health.json').then(function(h){
+      var st=h.status||'unknown';
+      $('dot').className='status-dot '+st;
+      $('status-label').className='status-text '+st;
+      $('status-label').textContent=st;
+      $('meta').textContent='Checked: '+(h.checked_at_iso||'unknown');
+      $('m-events').textContent=h.total_events||0;
+      $('m-frames').textContent=h.total_frames||0;
+      $('m-age').textContent=formatAge(h.last_event_age_seconds);
+      $('m-checked').textContent=h.checked_at_iso?h.checked_at_iso.replace('T',' ').replace('Z',''):'--';
+
+      var integ=h.integrity||{};
+      var iEl=$('integrity');
+      if(integ.ok){
+        iEl.innerHTML='<h3>Integrity Check</h3><div class="integrity-ok">All checks passed</div>';
+      }else{
+        var html='<h3>Integrity Check</h3><div class="integrity-fail">Issues found:</div>';
+        (integ.issues||[]).forEach(function(issue){html+='<div class="issue">'+issue+'</div>'});
+        iEl.innerHTML=html;
+      }
+    }).catch(function(){
+      $('status-label').textContent='offline';
+      $('dot').className='status-dot dead';
+    });
+  }
+
+  load();
+  setInterval(load,30000);
+})();
+</script>
+</body>
+</html>

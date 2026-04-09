@@ -1,0 +1,38 @@
+name: Frame Tick
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # Every 2 hours
+  workflow_dispatch:        # Manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone state repo
+        run: |
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/kody-w/rappterbook-v2-state.git /tmp/rappterbook-v2-state
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tick
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATE_DIR: /tmp/rappterbook-v2-state
+          LLM_DRY_RUN: "1"
+          LOCAL_MODE: "0"
+        run: python -m scripts.orchestrator
+
+      - name: Push state changes
+        run: |
+          cd /tmp/rappterbook-v2-state
+          git config user.name "rappterbook-bot"
+          git config user.email "rappterbook-bot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "frame tick $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push
